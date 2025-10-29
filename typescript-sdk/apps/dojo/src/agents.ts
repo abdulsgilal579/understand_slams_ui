@@ -1,0 +1,248 @@
+import "server-only";
+
+import { AgentIntegrationConfig } from "./types/integration";
+import { MiddlewareStarterAgent } from "@ag-ui/middleware-starter";
+import { ServerStarterAgent } from "@ag-ui/server-starter";
+import { ServerStarterAllFeaturesAgent } from "@ag-ui/server-starter-all-features";
+import { MastraClient } from "@mastra/client-js";
+import { MastraAgent } from "@ag-ui/mastra";
+import { VercelAISDKAgent } from "@ag-ui/vercel-ai-sdk";
+import { openai } from "@ai-sdk/openai";
+import { LangGraphAgent, LangGraphHttpAgent } from "@ag-ui/langgraph";
+import { AgnoAgent } from "@ag-ui/agno";
+import { LlamaIndexAgent } from "@ag-ui/llamaindex";
+import { CrewAIAgent } from "@ag-ui/crewai";
+import { mastra } from "./mastra";
+import axios from 'axios';
+
+const ADK_BACKEND = 'https://agui-adk-hzh2wqmavq-uc.a.run.app'
+class AdkAgent extends ServerStarterAgent {
+  client = {
+    threads: {
+      getState: async (threadId: string) => {
+        console.log('threadId==>', threadId)
+        
+        try {
+          // Make the API call using axios
+          const response = await axios.get(`${ADK_BACKEND}/agents/state`, {
+            params: { threadId },
+            headers: {
+              'accept': 'application/json'
+            }
+          });
+          
+          // Return in the expected format
+          return {
+            values: response.data
+          };
+          
+        } catch (error) {
+          console.error('Error fetching state:', error);
+          
+          // Fallback to original hardcoded response or throw error
+          const fallbackResult = { 
+            messages: [], 
+            state: {} 
+          };
+          
+          return {
+            values: fallbackResult
+          };
+        }
+      }
+    }
+  };
+}
+
+
+export const agentsIntegrations: AgentIntegrationConfig[] = [
+  {
+    id: "middleware-starter",
+    agents: async () => {
+      return {
+        agentic_chat: new MiddlewareStarterAgent(),
+      };
+    },
+  },
+  {
+    id: "server-starter",
+    agents: async () => {
+      return {
+        agentic_chat: new ServerStarterAgent({ url: "http://localhost:8000/" }),
+      };
+    },
+  },
+  {
+    id: "adk-middleware",
+    agents: async () => {
+      return {
+        agentic_chat: new ServerStarterAgent({ url: "http://localhost:8000/chat" }),
+        tool_based_generative_ui: new ServerStarterAgent({ url: "http://localhost:8000/adk-tool-based-generative-ui" }),
+        human_in_the_loop: new AdkAgent({ url: "http://localhost:8000/adk-human-in-loop-agent" }),
+        // human_in_the_loop: new AdkAgent({ url: `${ADK_BACKEND}/adk-human-in-loop-agent` }),
+        shared_state: new ServerStarterAgent({ url: "http://localhost:8000/adk-shared-state-agent" }),
+      };
+    },
+  },
+  {
+    id: "server-starter-all-features",
+    agents: async () => {
+      return {
+        agentic_chat: new ServerStarterAllFeaturesAgent({
+          url: "http://localhost:8000/agentic_chat",
+        }),
+        human_in_the_loop: new ServerStarterAllFeaturesAgent({
+          url: "http://localhost:8000/human_in_the_loop",
+        }),
+        agentic_generative_ui: new ServerStarterAllFeaturesAgent({
+          url: "http://localhost:8000/agentic_generative_ui",
+        }),
+        tool_based_generative_ui: new ServerStarterAllFeaturesAgent({
+          url: "http://localhost:8000/tool_based_generative_ui",
+        }),
+        shared_state: new ServerStarterAllFeaturesAgent({
+          url: "http://localhost:8000/shared_state",
+        }),
+        predictive_state_updates: new ServerStarterAllFeaturesAgent({
+          url: "http://localhost:8000/predictive_state_updates",
+        }),
+      };
+    },
+  },
+  {
+    id: "mastra",
+    agents: async () => {
+      const mastraClient = new MastraClient({
+        baseUrl: "http://localhost:4111",
+      });
+
+      return MastraAgent.getRemoteAgents({
+        mastraClient,
+      });
+    },
+  },
+  {
+    id: "mastra-agent-local",
+    agents: async () => {
+      return MastraAgent.getLocalAgents({ mastra });
+    },
+  },
+  {
+    id: "vercel-ai-sdk",
+    agents: async () => {
+      return {
+        agentic_chat: new VercelAISDKAgent({ model: openai("gpt-4o") }),
+      };
+    },
+  },
+  {
+    id: "langgraph",
+    agents: async () => {
+      return {
+        agentic_chat: new LangGraphAgent({
+          deploymentUrl: "http://localhost:2024",
+          graphId: "agentic_chat",
+        }),
+        agentic_generative_ui: new LangGraphAgent({
+          deploymentUrl: "http://localhost:2024",
+          graphId: "agentic_generative_ui",
+        }),
+        human_in_the_loop: new LangGraphAgent({
+          deploymentUrl: "http://localhost:2024",
+          graphId: "human_in_the_loop",
+        }),
+        predictive_state_updates: new LangGraphAgent({
+          deploymentUrl: "http://localhost:2024",
+          graphId: "predictive_state_updates",
+        }),
+        shared_state: new LangGraphAgent({
+          deploymentUrl: "http://localhost:2024",
+          graphId: "shared_state",
+        }),
+        tool_based_generative_ui: new LangGraphAgent({
+          deploymentUrl: "http://localhost:2024",
+          graphId: "tool_based_generative_ui",
+        }),
+      };
+    },
+  },
+  {
+    id: "langgraph-fastapi",
+    agents: async () => {
+      return {
+        agentic_chat: new LangGraphHttpAgent({
+          url: "http://localhost:8000/agent/agentic_chat",
+        }),
+        agentic_generative_ui: new LangGraphHttpAgent({
+          url: "http://localhost:8000/agent/agentic_generative_ui",
+        }),
+        human_in_the_loop: new LangGraphHttpAgent({
+          url: "http://localhost:8000/agent/human_in_the_loop",
+        }),
+        predictive_state_updates: new LangGraphHttpAgent({
+          url: "http://localhost:8000/agent/predictive_state_updates",
+        }),
+        shared_state: new LangGraphHttpAgent({
+          url: "http://localhost:8000/agent/shared_state",
+        }),
+        tool_based_generative_ui: new LangGraphHttpAgent({
+          url: "http://localhost:8000/agent/tool_based_generative_ui",
+        }),
+      };
+    },
+  },
+  {
+    id: "agno",
+    agents: async () => {
+      return {
+        agentic_chat: new AgnoAgent({
+          url: "http://localhost:8000/agui",
+        }),
+      };
+    },
+  },
+  {
+    id: "llama-index",
+    agents: async () => {
+      return {
+        agentic_chat: new LlamaIndexAgent({
+          url: "http://localhost:9000/agentic_chat/run",
+        }),
+        human_in_the_loop: new LlamaIndexAgent({
+          url: "http://localhost:9000/human_in_the_loop/run",
+        }),
+        agentic_generative_ui: new LlamaIndexAgent({
+          url: "http://localhost:9000/agentic_generative_ui/run",
+        }),
+        shared_state: new LlamaIndexAgent({
+          url: "http://localhost:9000/shared_state/run",
+        }),
+      };
+    },
+  },
+  {
+    id: "crewai",
+    agents: async () => {
+      return {
+        agentic_chat: new CrewAIAgent({
+          url: "http://localhost:8000/agentic_chat",
+        }),
+        human_in_the_loop: new CrewAIAgent({
+          url: "http://localhost:8000/human_in_the_loop",
+        }),
+        tool_based_generative_ui: new CrewAIAgent({
+          url: "http://localhost:8000/tool_based_generative_ui",
+        }),
+        agentic_generative_ui: new CrewAIAgent({
+          url: "http://localhost:8000/agentic_generative_ui",
+        }),
+        shared_state: new CrewAIAgent({
+          url: "http://localhost:8000/shared_state",
+        }),
+        predictive_state_updates: new CrewAIAgent({
+          url: "http://localhost:8000/predictive_state_updates",
+        }),
+      };
+    },
+  },
+];

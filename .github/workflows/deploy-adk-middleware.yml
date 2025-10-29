@@ -1,0 +1,44 @@
+name: Deploy ADK Middleware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typescript-sdk/integrations/adk-middleware/**'
+
+jobs:
+  deploy:
+    name: Deploy to Google Cloud Run
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker to use gcloud as a credential helper
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    - name: Build and push Docker image
+      working-directory: typescript-sdk/integrations/adk-middleware
+      run: |
+        gcloud builds submit -t us-central1-docker.pkg.dev/slamsportsai/slams/agui_adk
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy agui-adk \
+          --image us-central1-docker.pkg.dev/slamsportsai/slams/agui_adk \
+          --platform managed \
+          --region us-central1 \
+          --allow-unauthenticated
